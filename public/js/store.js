@@ -14,7 +14,11 @@ const defaults = () => ({
   highlights: [], // {id,url,title,sname,text,pre,note,created}
   readTime: {}, // 'YYYY-MM-DD' -> seconds of active reading
   writer: { tw: false, sf: false },
-  goal: 0,
+  pos: {}, // article link -> {r: scroll ratio 0..1, t: ts}
+  toured: false,
+  folded: {}, // folder name -> true when collapsed in the rail
+  goal: 0, // daily writing goal in words
+  writeStats: {}, // 'YYYY-MM-DD' -> {w: words written, p: paragraphs, s: seconds typing}
 });
 
 function parse(key) {

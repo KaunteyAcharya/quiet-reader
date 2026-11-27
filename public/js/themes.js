@@ -81,7 +81,7 @@ export function resolveColors(t) {
   return PRESETS.find((p) => p.id === t.preset) || PRESETS[0];
 }
 
-function luminance(hex) {
+export function luminance(hex) {
   const n = parseInt(hex.replace('#', ''), 16);
   const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => {
     v /= 255;
@@ -110,4 +110,21 @@ export function applyTheme(t) {
   root.style.colorScheme = luminance(c.bg) < 0.4 ? 'dark' : 'light';
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', c.bg);
   document.dispatchEvent(new Event('quiet-theme'));
+}
+
+export function contrast(a, b) {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
+const toHex = (n) => '#' + [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => v.toString(16).padStart(2, '0')).join('');
+// Nudge `fg` toward black or white (whichever helps) until it reaches `target` contrast on `bg`.
+export function fixContrast(fg, bg, target) {
+  const n = parseInt(fg.replace('#', ''), 16);
+  const goal = luminance(bg) < 0.4 ? 255 : 0;
+  for (let t = 0; t <= 1.001; t += 0.04) {
+    const mix = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => Math.round(v + (goal - v) * t));
+    const hex = toHex((mix[0] << 16) | (mix[1] << 8) | mix[2]);
+    if (contrast(hex, bg) >= target) return hex;
+  }
+  return toHex(goal * 0x010101);
 }

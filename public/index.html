@@ -20,12 +20,12 @@
   <aside id="rail" aria-label="Your sources">
     <div class="brand"><span class="logo"></span><span class="brand-name">Quiet</span></div>
     <nav id="nav"></nav>
-    <div class="rail-head"><span>Sources</span><button id="addBtn" class="icon-btn" title="Add a site" aria-label="Add a site"></button></div>
+    <div class="rail-head"><span>Sources</span><button id="addBtn" class="icon-btn" title="Add a site (a)" aria-label="Add a site"></button></div>
     <div id="sources"></div>
     <div class="rail-foot">
       <button id="writeBtn" class="btn wide primary-soft"><span data-i="pen"></span>Write</button>
       <div class="row">
-        <button id="themeBtn" class="btn ghost grow"><span data-i="palette"></span>Look</button>
+        <button id="themeBtn" class="btn ghost grow" title="Themes, fonts, width (t)"><span data-i="palette"></span>Look</button>
         <button id="settingsBtn" class="btn ghost grow"><span data-i="gear"></span>Data</button>
       </div>
     </div>
@@ -55,7 +55,20 @@
     <button id="rLook" class="icon-btn" title="Typography & theme" aria-label="Look"></button>
     <a id="rOpen" class="icon-btn" target="_blank" rel="noopener noreferrer" title="Open original" aria-label="Open original"></a>
   </div>
-  <div id="rScroll"><article id="rBody"></article></div>
+  <div class="r-split" id="rSplit">
+    <div id="rScroll"><article id="rBody"></article></div>
+    <div id="rPane2" hidden>
+      <div class="pane2-bar">
+        <button id="r2Back" class="btn ghost small only-mobile"><span data-i="left"></span>Article</button>
+        <span id="r2Host" class="grow ellipsis muted"></span>
+        <button id="r2Save" class="icon-btn tiny" title="Save for later" aria-label="Save"></button>
+        <button id="r2Follow" class="btn ghost small" title="Get new posts from this site">+ Follow</button>
+        <a id="r2Open" class="icon-btn tiny" target="_blank" rel="noopener noreferrer" title="Open original" aria-label="Open original"></a>
+        <button id="r2Close" class="icon-btn tiny" title="Close (Esc)" aria-label="Close split view"></button>
+      </div>
+      <div id="rScroll2"><article id="rBody2"></article></div>
+    </div>
+  </div>
 </section>
 
 <section id="writer" hidden aria-label="Writing studio">
@@ -66,6 +79,7 @@
     <div class="seg" id="wMode" role="group" aria-label="Layout">
       <button data-mode="write" class="on">Write</button><button data-mode="split">Split</button><button data-mode="read">Preview</button>
     </div>
+    <button id="wStats" class="btn ghost small" title="Your writing numbers">Stats</button>
     <button id="wFocus" class="btn ghost small" title="Hide everything but the words">Focus</button>
     <button id="wTW" class="btn ghost small" title="Keep the line you are typing in the middle of the screen">Typewriter</button>
     <button id="wSF" class="btn ghost small" title="Dim everything except the sentence you are writing">Sentence</button>
@@ -91,12 +105,13 @@
       <div class="w-pane prose" id="wPrevPane" hidden></div>
     </div>
   </div>
-  <div class="w-status"><span id="wCount"></span><span class="w-goal"><label>Goal <input id="wGoalIn" type="number" min="0" step="50" placeholder="words"></label><span id="wGoalNote"></span></span><span id="wSaved"></span><i class="w-progress" id="wProg"></i></div>
+  <div class="w-status"><span id="wCount"></span><span class="w-goal"><label>Daily goal <input id="wGoalIn" type="number" min="0" step="50" placeholder="words"></label><span id="wGoalNote"></span></span><span id="wSaved"></span><i class="w-progress" id="wProg"></i></div>
 </section>
 
 <dialog id="addDlg">
   <form method="dialog" class="dlg-head"><h2>Add a site</h2><button class="icon-btn" aria-label="Close" data-i="close"></button></form>
-  <p class="muted">Paste a blog, newsletter, GitHub repo, Substack, WordPress or any website. We'll find the feed, or watch the page if there isn't one.</p>
+  <p class="muted">Paste a blog, newsletter, GitHub repo, Substack, WordPress or any website. We'll find the feed — or, if there isn't one, the page where the site keeps its posts.</p>
+  <p class="muted small-t tip"><strong>Tip:</strong> the homepage is usually enough (<code>paulgraham.com</code>) — Quiet looks for the Blog / Essays / News section itself. If it picks the wrong page, paste the exact one, like <code>paulgraham.com/articles.html</code>.</p>
   <form id="addForm" class="add-row">
     <input id="addUrl" type="text" inputmode="url" placeholder="paulgraham.com" autocomplete="off" autocapitalize="off" spellcheck="false">
     <button class="btn primary" id="addFind">Find</button>
@@ -137,6 +152,25 @@
 </dialog>
 <div id="toast" class="toast" hidden role="status"></div>
 <div id="dropHint" class="drop-hint" hidden>Drop an OPML file to import your feeds</div>
+
+<dialog id="statsDlg">
+  <form method="dialog" class="dlg-head"><h2>Your writing</h2><button class="icon-btn" aria-label="Close" data-i="close"></button></form>
+  <div id="statsBody"></div>
+</dialog>
+
+<dialog id="keysDlg">
+  <form method="dialog" class="dlg-head"><h2>Keyboard shortcuts</h2><button class="icon-btn" aria-label="Close" data-i="close"></button></form>
+  <div id="keysList" class="keys"></div>
+  <div class="row" style="margin-top:14px"><button class="btn" id="tourBtn">Replay the tour</button></div>
+</dialog>
+
+<dialog id="srcDlg">
+  <form method="dialog" class="dlg-head"><h2>Source</h2><button class="icon-btn" aria-label="Close" data-i="close"></button></form>
+  <label class="field"><span>Name</span><input id="srcName" type="text" autocomplete="off"></label>
+  <label class="field"><span>Folder <small class="muted">(optional — group sources, e.g. “Essays”)</small></span><input id="srcFolder" type="text" list="folderList" autocomplete="off" placeholder="No folder"><datalist id="folderList"></datalist></label>
+  <div class="field"><span>Colour</span><div id="srcColors" class="hues"></div></div>
+  <div class="row" style="margin-top:14px"><button class="btn primary" id="srcSave">Save</button><button class="btn danger" id="srcDel">Remove source</button></div>
+</dialog>
 
 <dialog id="palDlg" class="pal">
   <input id="palIn" type="text" placeholder="Type a command, a source, or paste a link to save…" autocomplete="off" spellcheck="false" aria-label="Command palette">

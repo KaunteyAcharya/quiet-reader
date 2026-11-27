@@ -1,11 +1,33 @@
 import { state, save, uid } from './store.js';
 import { renderMarkdown, wordCount } from './md.js';
-import { $, $$, el, download, hydrate, icon } from './ui.js';
+import { $, $$, el, download, hydrate, icon, dayKey } from './ui.js';
 
 const root = () => $('#writer');
 let mode = 'write';
 let current = null;
 let saveTimer;
+
+// ---- writing statistics ----
+let prevW = 0;
+let prevP = 0;
+let lastType = 0;
+const paraCount = (t) => t.split(/\n\s*\n/).filter((x) => x.trim()).length;
+const dayStat = (o = 0) => state.writeStats[dayKey(o)] || { w: 0, p: 0, s: 0 };
+function track() {
+  const t = ta().value;
+  const w = wordCount(t);
+  const p = paraCount(t);
+  const st = (state.writeStats[dayKey()] ||= { w: 0, p: 0, s: 0 });
+  const dw = w - prevW;
+  if (dw > 0 && dw <= 150) st.w += dw; // big jumps are pastes, not writing
+  const dp = p - prevP;
+  if (dp > 0 && dp <= 10) st.p += dp;
+  const now = Date.now();
+  if (lastType && now - lastType < 10000) st.s += (now - lastType) / 1000;
+  lastType = now;
+  prevW = w;
+  prevP = p;
+}
 
 // ---- typewriter + sentence focus ----
 const escH = (x) => x.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -78,6 +100,9 @@ function load(id) {
   state.activeDraft = current.id;
   titleEl().value = current.title;
   ta().value = current.body;
+  prevW = wordCount(current.body);
+  prevP = paraCount(current.body);
+  lastType = 0;
   update();
   renderList();
 }
@@ -88,8 +113,9 @@ function update() {
   $('#wCount').textContent = `${words.toLocaleString()} word${words === 1 ? '' : 's'} · ${Math.max(1, Math.round(words / 230))} min read`;
   if (mode !== 'write') $('#wPrevPane').innerHTML = previewHtml();
   const goal = state.goal || 0;
-  $('#wProg').style.width = goal ? Math.min(100, (words / goal) * 100) + '%' : '0';
-  $('#wGoalNote').textContent = goal ? (words >= goal ? 'Goal reached 🎉' : `${(goal - words).toLocaleString()} to go`) : '';
+  const today = dayStat().w;
+  $('#wProg').style.width = goal ? Math.min(100, (today / goal) * 100) + '%' : '0';
+  $('#wGoalNote').textContent = `Today ${today.toLocaleString()}` + (goal ? (today >= goal ? ' · goal reached 🎉' : ` · ${(goal - today).toLocaleString()} to go`) : '');
 }
 
 function previewHtml() {
@@ -231,11 +257,12 @@ export function initWriter() {
   gi.oninput = () => { state.goal = Math.max(0, parseInt(gi.value, 10) || 0); save(); update(); };
   $('#wTools').replaceChildren(...TOOLS.map(([label, tip, fn]) => el('button', { type: 'button', title: tip, 'aria-label': tip, onclick: fn }, label)));
 
-  ta().addEventListener('input', () => { update(); typewrite(); scheduleSave(); });
+  ta().addEventListener('input', () => { track(); update(); typewrite(); scheduleSave(); });
   ta().addEventListener('keyup', (e) => { if (e.key.startsWith('Arrow') || e.key === 'Enter') typewrite(); });
   document.addEventListener('selectionchange', () => { if (document.activeElement === ta()) paintFocus(); });
   document.addEventListener('quiet-theme', () => { if (!root().hidden) refresh(); });
   window.addEventListener('resize', () => { if (!root().hidden) refresh(); });
+  $('#wStats').onclick = openStats;
   $('#wTW').onclick = () => { state.writer.tw = !state.writer.tw; save(); applyModes(); };
   $('#wSF').onclick = () => { state.writer.sf = !state.writer.sf; save(); applyModes(); };
   titleEl().addEventListener('input', () => { update(); scheduleSave(); });
@@ -277,4 +304,68 @@ export function initWriter() {
     if (e.key === 'Escape' && root().classList.contains('focus')) root().classList.remove('focus');
   });
   window.addEventListener('beforeunload', flush);
+}
+
+
+// ---- stats dialog ----
+const fmtMin = (sec) => (sec < 60 ? '' : sec < 3600 ? `${Math.round(sec / 60)} min` : `${Math.floor(sec / 3600)} hr ${Math.round((sec % 3600) / 60)} min`);
+const longDay = (o) => new Date(Date.now() + o * 864e5).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+let statRange = 14;
+
+function streak() {
+  let n = 0;
+  let o = dayStat(0).w > 0 ? 0 : -1; // today may not be written yet
+  while (dayStat(o).w > 0 && n < 1000) { n++; o--; }
+  return n;
+}
+
+export function openStats() {
+  renderStats();
+  $('#statsDlg').showModal();
+}
+
+function renderStats() {
+  const box = $('#statsBody');
+  const t = dayStat(0);
+  const y = dayStat(-1);
+  let week = 0, weekP = 0;
+  for (let o = 0; o > -7; o--) { week += dayStat(o).w; weekP += dayStat(o).p; }
+  const best = Math.max(0, ...Object.values(state.writeStats).map((d) => d.w));
+  const goal = state.goal || 0;
+  const msg = y.w > 0
+    ? `Yesterday you wrote ${y.w.toLocaleString()} word${y.w === 1 ? '' : 's'} in ${y.p} paragraph${y.p === 1 ? '' : 's'}.${t.w ? ` Today: ${t.w.toLocaleString()} so far.` : ' Today is still blank — a few lines is enough.'}`
+    : t.w > 0 ? `Today you've written ${t.w.toLocaleString()} word${t.w === 1 ? '' : 's'} in ${t.p} paragraph${t.p === 1 ? '' : 's'}.` : 'Write a few lines today and your numbers start here.';
+
+  const card = (label, big, sub) => el('div', { class: 'st-card' }, el('small', { text: label }), el('strong', { text: big }), el('span', { text: sub }));
+  const days = Array.from({ length: statRange }, (_, i) => -(statRange - 1 - i));
+  const max = Math.max(goal, ...days.map((o) => dayStat(o).w), 1);
+
+  const chart = el('div', { class: 'st-chart', role: 'img', 'aria-label': `Words written per day, last ${statRange} days` },
+    goal ? el('div', { class: 'st-goal', style: `bottom:${(goal / max) * 100}%` }, el('em', { text: `goal ${goal}` })) : null,
+    ...days.map((o) => {
+      const d = dayStat(o);
+      return el('div', { class: 'col' + (o === 0 ? ' t' : '') + (goal && d.w >= goal ? ' hit' : ''), title: `${longDay(o)}: ${d.w ? `${d.w.toLocaleString()} words · ${d.p} paragraphs` : 'nothing written'}` },
+        el('i', { style: `height:${d.w ? Math.max(2, (d.w / max) * 100) : 0}%` }));
+    }));
+
+  const pick = el('input', { type: 'date', max: dayKey(), 'aria-label': 'Look up a day' });
+  const pickOut = el('span', { class: 'muted', text: 'Pick any day to see what you wrote.' });
+  pick.onchange = () => {
+    const st = state.writeStats[pick.value];
+    const when = new Date(pick.value + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    pickOut.textContent = st && st.w ? `${when}: ${st.w.toLocaleString()} words in ${st.p} paragraphs${fmtMin(st.s) ? ` · about ${fmtMin(st.s)} of writing` : ''}.` : `${when}: nothing written.`;
+  };
+
+  box.replaceChildren(
+    el('p', { class: 'st-msg', text: msg }),
+    el('div', { class: 'st-cards' },
+      card('Today', t.w.toLocaleString(), `${t.p} paragraphs${fmtMin(t.s) ? ' · ' + fmtMin(t.s) : ''}`),
+      card('Yesterday', y.w.toLocaleString(), `${y.p} paragraphs`),
+      card('Last 7 days', week.toLocaleString(), `${weekP} paragraphs`),
+      card('Streak', `${streak()} day${streak() === 1 ? '' : 's'}`, best ? `best day ${best.toLocaleString()} words` : 'write today to start')),
+    el('div', { class: 'seg', style: 'margin:0 0 10px;width:max-content' },
+      ...[7, 14, 30, 90].map((n) => el('button', { class: n === statRange ? 'on' : '', onclick: () => { statRange = n; renderStats(); } }, n + ' days'))),
+    chart,
+    el('div', { class: 'st-axis' }, el('span', { text: longDay(days[0]) }), el('span', { text: 'today' })),
+    el('div', { class: 'st-pick' }, el('label', { text: 'Look up a day: ' }), pick, pickOut));
 }

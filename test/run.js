@@ -82,4 +82,22 @@ try {
 } finally {
   srv.close();
 }
+
+process.env.ALLOW_PRIVATE_FETCH = '1';
+// --- auto-detecting the section of a site that holds the writing ---
+const prose = 'This is a long paragraph of personal prose without many links. '.repeat(25);
+const idx = '<html><title>Essays</title><body><main><ul>' + [1, 2, 3, 4, 5].map((i) => `<li><a href="/essays/a${i}">Essay number ${i} about things</a></li>`).join('') + '</ul></main></body></html>';
+const srv2 = http.createServer((q, r) => {
+  const send = (b) => (r.setHeader('content-type', 'text/html'), r.end(b));
+  if (q.url === '/') return send(`<html><title>Me</title><body><nav><a href="/essays">Essays</a><a href="/about">About</a></nav><main><p>${prose}</p></main></body></html>`);
+  if (q.url === '/essays') return send(idx);
+  if (q.url === '/essays/a1') return send(`<html><title>A1</title><body><nav><a href="/essays">Essays</a></nav><main><article><p>${prose}<a href="/essays/a2">a link to another one</a></p></article></main></body></html>`);
+  r.statusCode = 404; r.end('nf');
+}).listen(0);
+const base2 = `http://127.0.0.1:${srv2.address().port}`;
+try {
+  await t('homepage -> finds the Essays section on its own', async () => { const d = await discover(base2 + '/'); assert.equal(d.feedUrl, base2 + '/essays'); assert.equal(d.items.length, 5); assert.ok(d.detected); });
+  await t('exact index page is trusted as-is', async () => { const d = await discover(base2 + '/essays'); assert.equal(d.feedUrl, base2 + '/essays'); assert.equal(d.detected, null); });
+  await t('single article -> finds the section it belongs to', async () => { const d = await discover(base2 + '/essays/a1'); assert.equal(d.feedUrl, base2 + '/essays'); });
+} finally { srv2.close(); }
 console.log(`\nAll ${n} checks passed.`);
