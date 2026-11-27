@@ -1,0 +1,17 @@
+{
+  "name": "quiet-reader",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A reader for only what you choose. No algorithm, no infinite scroll.",
+  "scripts": {
+    "dev": "node dev.js",
+    "test": "node test/run.js"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "@mozilla/readability": "^0.5.0",
+    "fast-xml-parser": "^4.5.0",
+    "linkedom": "^0.18.5"
+  }
+}

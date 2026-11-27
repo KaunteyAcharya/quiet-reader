@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Quiet — read only what you choose</title>
+<meta name="description" content="A calm reader for the blogs, newsletters and reports you pick. No algorithm. No infinite scroll.">
+<meta name="theme-color" content="#faf8f3">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23b4442a'/%3E%3Ccircle cx='16' cy='16' r='6' fill='none' stroke='%23fff' stroke-width='3'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div id="app">
+  <div id="scrim"></div>
+  <aside id="rail" aria-label="Your sources">
+    <div class="brand"><span class="logo"></span><span class="brand-name">Quiet</span></div>
+    <nav id="nav"></nav>
+    <div class="rail-head"><span>Sources</span><button id="addBtn" class="icon-btn" title="Add a site" aria-label="Add a site"></button></div>
+    <div id="sources"></div>
+    <div class="rail-foot">
+      <button id="writeBtn" class="btn wide primary-soft"><span data-i="pen"></span>Write</button>
+      <div class="row">
+        <button id="themeBtn" class="btn ghost grow"><span data-i="palette"></span>Look</button>
+        <button id="settingsBtn" class="btn ghost grow"><span data-i="gear"></span>Data</button>
+      </div>
+    </div>
+  </aside>
+
+  <main id="main">
+    <header class="top">
+      <button id="menuBtn" class="icon-btn only-mobile" aria-label="Menu"></button>
+      <div class="titles"><h1 id="viewTitle">Everything</h1><p id="viewSub"></p></div>
+      <div class="top-actions">
+        <button id="markAllBtn" class="btn ghost small">Mark all read</button>
+        <button id="refreshBtn" class="icon-btn" title="Refresh" aria-label="Refresh"></button>
+      </div>
+    </header>
+    <div id="feed"></div>
+  </main>
+</div>
+
+<section id="reader" hidden aria-label="Reader">
+  <div id="readProgress"></div>
+  <div class="reader-bar">
+    <button id="rBack" class="btn ghost"><span data-i="left"></span>Back</button>
+    <div class="grow"></div>
+    <button id="rPrev" class="icon-btn" title="Previous (k)" aria-label="Previous"></button>
+    <button id="rNext" class="icon-btn" title="Next (j)" aria-label="Next"></button>
+    <button id="rSave" class="icon-btn" title="Save for later" aria-label="Save"></button>
+    <button id="rLook" class="icon-btn" title="Typography & theme" aria-label="Look"></button>
+    <a id="rOpen" class="icon-btn" target="_blank" rel="noopener noreferrer" title="Open original" aria-label="Open original"></a>
+  </div>
+  <div id="rScroll"><article id="rBody"></article></div>
+</section>
+
+<section id="writer" hidden aria-label="Writing studio">
+  <div class="w-bar">
+    <button id="wClose" class="btn ghost"><span data-i="left"></span>Done</button>
+    <button id="wDrafts" class="icon-btn" title="Drafts" aria-label="Drafts"></button>
+    <div class="grow"></div>
+    <div class="seg" id="wMode" role="group" aria-label="Layout">
+      <button data-mode="write" class="on">Write</button><button data-mode="split">Split</button><button data-mode="read">Preview</button>
+    </div>
+    <button id="wFocus" class="btn ghost small" title="Hide everything but the words">Focus</button>
+    <button id="wTW" class="btn ghost small" title="Keep the line you are typing in the middle of the screen">Typewriter</button>
+    <button id="wSF" class="btn ghost small" title="Dim everything except the sentence you are writing">Sentence</button>
+    <div class="menu-wrap">
+      <button id="wExport" class="btn small">Export</button>
+      <div id="wExportMenu" class="menu" hidden>
+        <button data-x="md">Download Markdown</button>
+        <button data-x="html">Download styled HTML</button>
+        <button data-x="copy">Copy Markdown</button>
+        <button data-x="copyhtml">Copy HTML</button>
+      </div>
+    </div>
+  </div>
+  <div class="w-body">
+    <aside id="wList" hidden></aside>
+    <div class="w-stage">
+      <div class="w-pane" id="wEditPane">
+        <input id="wTitle" placeholder="Title" aria-label="Title" autocomplete="off">
+        <div class="w-tools" id="wTools"></div>
+        <div class="w-ta-wrap"><div id="wMirror" class="w-mirror" aria-hidden="true"></div><div id="wMeasure" class="w-mirror measure" aria-hidden="true"></div>
+        <textarea id="wText" placeholder="Start writing. Markdown works — # headings, **bold**, *italic*, > quotes, - lists, `code`." spellcheck="true"></textarea></div>
+      </div>
+      <div class="w-pane prose" id="wPrevPane" hidden></div>
+    </div>
+  </div>
+  <div class="w-status"><span id="wCount"></span><span class="w-goal"><label>Goal <input id="wGoalIn" type="number" min="0" step="50" placeholder="words"></label><span id="wGoalNote"></span></span><span id="wSaved"></span><i class="w-progress" id="wProg"></i></div>
+</section>
+
+<dialog id="addDlg">
+  <form method="dialog" class="dlg-head"><h2>Add a site</h2><button class="icon-btn" aria-label="Close" data-i="close"></button></form>
+  <p class="muted">Paste a blog, newsletter, GitHub repo, Substack, WordPress or any website. We'll find the feed, or watch the page if there isn't one.</p>
+  <form id="addForm" class="add-row">
+    <input id="addUrl" type="text" inputmode="url" placeholder="paulgraham.com" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <button class="btn primary" id="addFind">Find</button>
+  </form>
+  <div id="addResult"></div>
+  <div id="addStarters"></div>
+</dialog>
+
+<dialog id="themeDlg">
+  <form method="dialog" class="dlg-head"><h2>How it looks</h2><button class="icon-btn" aria-label="Close" data-i="close"></button></form>
+  <div id="themeBody"></div>
+</dialog>
+
+<dialog id="settingsDlg">
+  <form method="dialog" class="dlg-head"><h2>Your data</h2><button class="icon-btn" aria-label="Close" data-i="close"></button></form>
+  <h3 class="sec">Save links from anywhere</h3>
+  <div id="captureBox" class="capture"></div>
+  <h3 class="sec">Bring your feeds</h3>
+  <p class="muted small-t">Export OPML from Feedly, Inoreader, NetNewsWire, Reeder and the rest, then import it here — or just drop the file onto this page.</p>
+  <h3 class="sec">Your data</h3>
+  <p class="muted small-t">Everything lives in this browser. Back it up, or move it to another device.</p>
+  <div class="stack">
+    <button class="btn" id="expOpml">Export sources (OPML)</button>
+    <button class="btn" id="expJson">Full backup (JSON)</button>
+    <label class="btn" for="impFile">Import OPML or backup…</label>
+    <input id="impFile" type="file" accept=".opml,.xml,.json" hidden>
+    <button class="btn danger" id="wipe">Erase everything</button>
+  </div>
+  <p id="settingsMsg" class="muted"></p>
+</dialog>
+
+<div id="selBar" class="sel-bar" hidden><button data-a="hl">Highlight</button><button data-a="note">Add note</button><button data-a="quote">Quote in draft</button></div>
+<dialog id="noteDlg">
+  <form method="dialog" class="dlg-head"><h2>Highlight</h2><button class="icon-btn" aria-label="Close" data-i="close"></button></form>
+  <blockquote id="noteQuote" class="note-quote"></blockquote>
+  <textarea id="noteText" rows="4" placeholder="Your note — what do you think?"></textarea>
+  <div class="row" style="margin-top:12px"><button class="btn primary" id="noteSave">Save</button><button class="btn ghost" id="noteDel">Remove highlight</button></div>
+</dialog>
+<div id="toast" class="toast" hidden role="status"></div>
+<div id="dropHint" class="drop-hint" hidden>Drop an OPML file to import your feeds</div>
+
+<dialog id="palDlg" class="pal">
+  <input id="palIn" type="text" placeholder="Type a command, a source, or paste a link to save…" autocomplete="off" spellcheck="false" aria-label="Command palette">
+  <ul id="palList" role="listbox"></ul>
+</dialog>
+
+<script type="module" src="/js/app.js"></script>
+</body>
+</html>
