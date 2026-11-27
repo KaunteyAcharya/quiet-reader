@@ -60,6 +60,8 @@ const srv = http.createServer((q, r) => {
   if (q.url === '/b/') return send('text/html', '<html><body>no link tag</body></html>');
   if (q.url === '/b/atom.xml') return send('application/atom+xml', atom);
   if (q.url === '/c/') return send('text/html', `<html><title>Plain</title><body><main><a href="/c/one-long-title-x">One long title here</a><a href="/c/two-long-title-x">Two long title here</a><a href="/c/three-long-title-x">Three long title here</a></main></body></html>`);
+  if (q.url === '/') return send('text/html', `<html><title>Home</title><body><main><a href="/x/one-long-title-x">One long title here</a><a href="/x/two-long-title-x">Two long title here</a><a href="/x/three-long-title-x">Three long title here</a></main></body></html>`);
+  if (q.url === '/x/article') return send('text/html', '<html><title>An article</title><body><main><p>Just text, no index.</p></main></body></html>');
   if (q.url === '/post') return send('text/html', art);
   if (q.url === '/redir') { r.statusCode = 302; r.setHeader('location', '/post'); return r.end(); }
   r.statusCode = 404; r.end('nf');
@@ -69,6 +71,7 @@ try {
   await t('discover via <link rel=alternate>', async () => { const d = await discover(base + '/a/'); assert.equal(d.kind, 'feed'); assert.equal(d.feedUrl, base + '/custom.xml'); });
   await t('discover via guessed path', async () => { const d = await discover(base + '/b/'); assert.equal(d.feedUrl, base + '/b/atom.xml'); });
   await t('discover falls back to page-watch', async () => { const d = await discover(base + '/c/'); assert.equal(d.kind, 'page'); assert.equal(d.items.length, 3); });
+  await t('article page falls back to watching the site front page', async () => { const d = await discover(base + '/x/article'); assert.equal(d.kind, 'page'); assert.equal(d.feedUrl, base + '/'); assert.equal(d.items.length, 3); });
   await t('article extraction + redirect', async () => { const a = await readArticle(base + '/redir'); assert.ok(a.content.includes('Words here') && !a.content.includes('evil')); assert.ok(a.minutes >= 1); });
   await t('private hosts blocked when protection on', async () => {
     delete process.env.ALLOW_PRIVATE_FETCH;

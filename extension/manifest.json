@@ -3,9 +3,34 @@
   "name": "Save to Quiet",
   "version": "0.1.0",
   "description": "One click (or Alt+Shift+S) to save the current page to your Quiet reading list.",
-  "permissions": ["activeTab", "storage"],
-  "background": { "service_worker": "background.js" },
-  "action": { "default_title": "Save to Quiet" },
+  "permissions": [
+    "activeTab",
+    "storage"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Save to Quiet",
+    "default_icon": {
+      "16": "icon-16.png",
+      "32": "icon-32.png",
+      "48": "icon-48.png"
+    }
+  },
   "options_page": "options.html",
-  "commands": { "_execute_action": { "suggested_key": { "default": "Alt+Shift+S" }, "description": "Save this page to Quiet" } }
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Alt+Shift+S"
+      },
+      "description": "Save this page to Quiet"
+    }
+  },
+  "icons": {
+    "16": "icon-16.png",
+    "32": "icon-32.png",
+    "48": "icon-48.png",
+    "128": "icon-128.png"
+  }
 }

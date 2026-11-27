@@ -1,4 +1,4 @@
-import { state, cache, save, saveCache, replaceAll, wipe, hash, saveLink, unsave, uid } from './store.js';
+import { state, cache, save, saveCache, replaceAll, wipe, hash, saveLink, unsave, uid, onExternalChange } from './store.js';
 import { PRESETS, FONTS, applyTheme, resolveColors, fontStack, loadAllFonts } from './themes.js';
 import { $, $$, el, icon, hydrate, ago, dayLabel, hue, download } from './ui.js';
 import { initWriter, openWriter, quoteIntoDraft } from './writer.js';
@@ -122,7 +122,7 @@ function renderRail() {
         const err = cache[s.id]?.error;
         const name = s.title || new URL(s.url).hostname;
         return el('div', { class: 'src' + (view.source === s.id ? ' on' : '') },
-          el('button', { class: 'src-main', title: err ? 'Problem: ' + err : s.url, onclick: () => setView(view.filter === 'saved' ? 'saved' : 'all', s.id) },
+          el('button', { class: 'src-main', title: err ? 'Problem: ' + err : s.url, onclick: () => setView('all', s.id) },
             el('span', { class: 'avatar', style: `--h:${hue(name)}`, text: name[0].toUpperCase() }),
             el('span', { class: 'grow ellipsis', text: name }),
             err ? el('span', { class: 'warn', title: err, text: '!' }) : n ? el('span', { class: 'count', text: n }) : null),
@@ -218,8 +218,15 @@ function card(it) {
       it.summary ? el('p', { class: 'summary', text: it.summary }) : null),
     it.image ? el('img', { class: 'thumb', src: it.image, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer', onerror: (e) => e.target.remove() }) : null,
     el('div', { class: 'card-actions' },
+      it.sid === '_saved' ? el('button', { class: 'btn ghost small', title: 'Get new posts from this site', onclick: () => followSite(it.link) }, '+ Follow site') : null,
       el('button', { class: 'icon-btn tiny' + (saved ? ' on' : ''), title: saved ? 'Unsave' : 'Save for later', 'aria-label': 'Save', html: icon('mark', saved), onclick: () => toggleSave(it) }),
       el('button', { class: 'icon-btn tiny', title: isRead ? 'Mark unread' : 'Mark read', 'aria-label': 'Toggle read', html: icon('dot', !isRead), onclick: () => toggleRead(it) })));
+}
+
+function followSite(url) {
+  openAdd();
+  $('#addUrl').value = url;
+  $('#addForm').requestSubmit();
 }
 
 function toggleSave(it) {
@@ -554,11 +561,11 @@ document.addEventListener('paste', (e) => {
 function renderCapture() {
   const origin = location.origin;
   const code = `javascript:(()=>{window.open('${origin}/save.html?u='+encodeURIComponent(location.href)+'&t='+encodeURIComponent(document.title),'quiet','width=420,height=240')})()`;
-  const bm = el('a', { class: 'btn bm', onclick: (e) => e.preventDefault(), draggable: 'true' }, '＋ Save to Quiet');
+  const bm = el('a', { class: 'btn bm', onclick: (e) => e.preventDefault(), draggable: 'true' }, '◉ Quiet');
   bm.setAttribute('href', code);
   $('#captureBox').replaceChildren(
-    el('div', {}, el('strong', { text: 'Bookmarklet' }), el('p', { class: 'muted small-t', text: 'Drag this button to your bookmarks bar. Click it on any page — Twitter, Reddit, news sites — to save the link.' }), bm),
-    el('div', {}, el('strong', { text: 'Browser extension' }), el('p', { class: 'muted small-t', text: 'Works on sites that block bookmarklets. In the project’s extension/ folder: load it unpacked in Chrome/Edge/Brave, then set your Quiet address. Shortcut: Alt+Shift+S.' })),
+    el('div', {}, el('strong', { text: 'Bookmarklet' }), el('p', { class: 'muted small-t', text: 'Drag this button to your bookmarks bar, then click it on any page to save the link or follow the site. Chrome shows a plain globe for bookmarklets — for a proper icon use the extension below.' }), bm),
+    el('div', {}, el('strong', { text: 'Browser extension' }), el('p', { class: 'muted small-t', text: 'Recommended: a real Quiet icon in your toolbar, works on every site. Load the extension/ folder unpacked in Chrome/Edge/Brave, then set your Quiet address. Shortcut: Alt+Shift+S.' })),
     el('div', {}, el('strong', { text: 'Phone share sheet' }), el('p', { class: 'muted small-t', text: 'Install Quiet (Add to Home Screen) and it appears as a share target on Android: Share → Quiet. On iPhone, use the Shortcuts app with “Open URL” → ' + origin + '/save.html?u=[Shortcut Input].' })),
     el('div', {}, el('strong', { text: 'Paste' }), el('p', { class: 'muted small-t', text: 'With Quiet open, paste any link (Ctrl/⌘+V) or press Ctrl/⌘+K and paste it there.' })));
 }
@@ -842,6 +849,13 @@ function statBlock() {
     el('div', { class: 'bars', 'aria-label': 'Reading time, last 7 days' },
       ...days.map((d) => el('div', { class: d.o === 0 ? 't' : '', title: `${d.o === 0 ? 'Today' : dayLabel(Date.now() + d.o * 864e5)}: ${d.sec ? fmtDur(d.sec) : 'none'}` }, el('i', { style: `height:${Math.max(3, Math.round((d.sec / max) * 28))}px` }), d.label))));
 }
+
+// ---------- stay in sync with other Quiet windows ----------
+onExternalChange(() => {
+  applyTheme(state.theme);
+  renderRail();
+  if ($('#reader').hidden && $('#writer').hidden) renderFeed();
+});
 
 // ---------- offline / install ----------
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('/sw.js').catch(() => {});
