@@ -301,3 +301,39 @@ kbd{font:12px var(--ui);padding:2px 8px;border-radius:6px;border:1px solid var(-
 .contrast{margin:10px 0 2px;display:grid;gap:6px}.contrast-line{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;padding:6px 10px;border-radius:9px;border:1px solid var(--line)}
 .contrast-line.ok span::before{content:"✓ ";color:#2e8b57}.contrast-line.bad{border-color:#c0562f}.contrast-line.bad span::before{content:"! ";color:#c0562f}
 @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+
+/* ---- ink (pen / circle / comment) ---- */
+#rScroll{position:relative}
+.ink-svg{position:absolute;left:0;top:0;z-index:3;pointer-events:none;overflow:visible}
+#reader.ink-on .ink-svg{pointer-events:auto;touch-action:none;cursor:crosshair}
+#reader[data-ink-tool="eraser"] .ink-svg{cursor:cell}
+#reader.ink-on #rScroll{user-select:none;-webkit-user-select:none}
+.ink-notes{position:absolute;left:0;top:0;z-index:4;pointer-events:none}
+.ink-note{position:absolute;width:210px;pointer-events:auto;border-radius:10px;background:color-mix(in srgb,var(--c) 14%,var(--bg));border:1px solid color-mix(in srgb,var(--c) 50%,transparent);box-shadow:0 4px 16px rgba(0,0,0,.14);font-family:var(--ui)}
+.ink-note .grip{height:16px;cursor:grab;display:flex;align-items:center;justify-content:center;border-radius:9px 9px 0 0;background:color-mix(in srgb,var(--c) 30%,transparent);touch-action:none}
+.ink-note .grip span{width:26px;height:3px;border-radius:3px;background:color-mix(in srgb,var(--c) 70%,var(--fg))}
+.ink-note textarea{display:block;width:100%;box-sizing:border-box;padding:8px 26px 9px 10px;border:0;background:transparent;resize:none;overflow:hidden;font:500 15px/1.4 var(--ui);color:var(--fg);outline:0;min-height:36px}
+.ink-note .x{position:absolute;right:3px;top:17px;width:22px;height:22px;border-radius:6px;color:var(--muted);font-size:17px;line-height:1;opacity:0}
+.ink-note:hover .x,.ink-note:focus-within .x,.touch .ink-note .x{opacity:1}
+.ink-bar{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:40;display:flex;align-items:center;gap:2px;padding:6px;border-radius:16px;background:var(--bg);box-shadow:0 0 0 1px var(--line),0 8px 28px rgba(0,0,0,.18)}
+.ink-bar[hidden],.ink-style[hidden]{display:none}
+.ink-btn{width:42px;height:42px;display:grid;place-items:center;border-radius:11px;color:var(--fg)}
+.ink-btn:hover:not(:disabled){background:var(--hover)}.ink-btn:disabled{opacity:.3}
+.ink-btn.on{background:var(--accent);color:#fff}.ink-btn.done{color:var(--muted)}
+.ink-bar .sep{width:1px;height:24px;background:var(--line);margin:0 4px}
+.ink-style{position:fixed;right:16px;top:84px;z-index:40;width:178px;padding:12px;border-radius:14px;background:var(--bg);box-shadow:0 0 0 1px var(--line),0 8px 28px rgba(0,0,0,.16);display:grid;gap:12px}
+.ink-colors{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;justify-items:center}
+.ink-dot{width:28px;height:28px;border-radius:50%;display:grid;place-items:center}
+.ink-dot::before{content:"";width:18px;height:18px;border-radius:50%;background:var(--c)}
+.ink-dot.on{background:var(--hover);box-shadow:0 0 0 1.5px var(--fg)}
+.ink-sizes{display:flex;background:var(--card);border-radius:9px;padding:2px}.ink-sizes button{flex:1;padding:5px 0;border-radius:7px;font:600 12px var(--ui);color:var(--muted)}.ink-sizes button.on{background:var(--bg);color:var(--fg);box-shadow:0 0 0 1px var(--line)}
+.ink-opt{display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--muted)}
+.ink-clear{font-size:12px;color:var(--muted);text-align:left}.ink-clear:hover{color:#c0392b}
+#rInk.on{color:var(--accent);background:var(--hover)}
+@media (max-width:700px){.ink-style{top:auto;right:50%;transform:translateX(50%);bottom:76px}}
+/* tablet / touch: bigger targets */
+.touch .icon-btn{min-width:44px;min-height:44px}
+.touch .nav-item,.touch .src-main,.touch .folder-main{padding-top:12px;padding-bottom:12px}
+.touch .ink-btn{width:50px;height:50px}.touch .ink-dot{width:36px;height:36px}.touch .ink-style{width:214px}
+.touch .card-actions{opacity:1}
+#sources{overflow-x:hidden}

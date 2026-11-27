@@ -16,6 +16,9 @@ const defaults = () => ({
   writer: { tw: false, sf: false },
   pos: {}, // article link -> {r: scroll ratio 0..1, t: ts}
   toured: false,
+  ink: {}, // article link -> {shapes, t, title, sname}
+  inkStyle: { c: 'orange', s: 'M' },
+  inkPenOnly: null, // null = automatic (fingers scroll once a pen has been seen)
   folded: {}, // folder name -> true when collapsed in the rail
   goal: 0, // daily writing goal in words
   writeStats: {}, // 'YYYY-MM-DD' -> {w: words written, p: paragraphs, s: seconds typing}

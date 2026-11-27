@@ -2,6 +2,7 @@ import { state, cache, save, saveCache, replaceAll, wipe, hash, saveLink, unsave
 import { PRESETS, FONTS, applyTheme, resolveColors, fontStack, loadAllFonts, contrast, fixContrast } from './themes.js';
 import * as offline from './offline.js';
 import { showKeys, startTour } from './tour.js';
+import { createInk } from './ink.js';
 import { $, $$, el, icon, hydrate, ago, dayLabel, hue, download } from './ui.js';
 import { initWriter, openWriter, quoteIntoDraft } from './writer.js';
 
@@ -338,6 +339,9 @@ let r2Item = null;
 let r2Token = 0;
 
 // Fetch an article and render it into `body`. `current()` says whether the result is still wanted.
+let ink;
+const inkReady = () => (ink ||= createInk({ scroll: $('#rScroll'), body: $('#rBody'), state, save, toast }));
+
 function articleData(link) {
   return api('/api/article', { url: link }).catch(async (e) => {
     const c = await offline.read(link);
@@ -375,6 +379,7 @@ function fillArticle(body, it, current, onDone) {
 }
 
 function openReader(it) {
+  ink?.unload();
   closeSplit();
   rItem = it;
   rIdx = visible.findIndex((v) => v.key === it.key);
@@ -387,10 +392,11 @@ function openReader(it) {
   $('#rNext').disabled = rIdx < 0 || rIdx >= visible.length - 1;
   const token = ++rToken;
   $('#rScroll').scrollTop = 0;
-  fillArticle($('#rBody'), it, () => token === rToken, () => restorePos(it));
+  fillArticle($('#rBody'), it, () => token === rToken, () => { restorePos(it); inkReady().load(it.link, { title: it.title, sname: it.sname || srcById(it.sid)?.title || '' }); });
 }
 
 function closeReader() {
+  ink?.unload();
   if (rItem) { // refresh just this card (resume bar, read state) without moving the page
     const old = $$('#feed .card').find((c) => c.dataset.key === rItem.key);
     if (old) { const fresh = card(visible.find((v) => v.key === rItem.key) || rItem); if (old.classList.contains('kb')) fresh.classList.add('kb'); old.replaceWith(fresh); }
@@ -520,6 +526,7 @@ document.addEventListener('keydown', (e) => {
     if (e.key === 'j') step(1);
     if (e.key === 'k') step(-1);
     if (e.key === 's' && rItem) toggleSave(rItem);
+    if (e.key === 'p' && rItem) inkReady().toggle();
     if (e.key === '?') showKeys();
     return;
   }
@@ -1036,9 +1043,10 @@ $('#noteDel').onclick = () => { if (noteFor) deleteHighlight(noteFor.id); $('#no
 function renderHighlights() {
   const feed = $('#feed');
   const hs = state.highlights.slice().sort((a, b) => b.created - a.created);
+  const sketches = Object.entries(state.ink || {}).map(([url, v]) => ({ url, ...v, notes: (v.shapes || []).filter((x) => x.t === 'note' && (x.text || '').trim()) })).filter((v) => v.shapes?.length).sort((a, b) => b.t - a.t);
   $('#viewSub').textContent = `${hs.length} highlight${hs.length === 1 ? '' : 's'} · ${hs.filter((h) => h.note).length} with notes`;
   $('#markAllBtn').hidden = true;
-  if (!hs.length) return feed.replaceChildren(el('p', { class: 'empty', text: 'Select any text while reading to highlight it or add a note. It all collects here.' }));
+  if (!hs.length && !sketches.length) return feed.replaceChildren(el('p', { class: 'empty', text: 'Select any text while reading to highlight it or add a note. It all collects here.' }));
   const groups = new Map();
   for (const h of hs) groups.set(h.url, [...(groups.get(h.url) || []), h]);
   const nodes = [el('div', { class: 'row hl-tools' }, el('button', { class: 'btn small', onclick: exportHighlights }, 'Export as Markdown'))];
@@ -1053,6 +1061,15 @@ function renderHighlights() {
           el('button', { class: 'btn ghost small', onclick: () => openNote(h) }, h.note ? 'Edit note' : 'Add note'),
           el('button', { class: 'btn ghost small', onclick: () => quoteIntoDraft(`> ${h.text}\n>\n> — [${h.title.replace(/[\[\]]/g, '')}](${h.url})${h.note ? '\n\n' + h.note : ''}`) }, 'Send to draft'),
           el('button', { class: 'btn ghost small', onclick: () => deleteHighlight(h.id) }, 'Delete'))))));
+  }
+  if (sketches.length) {
+    nodes.push(el('h2', { class: 'day', text: 'Drawn on' }));
+    for (const v of sketches) {
+      nodes.push(el('section', { class: 'hl-group' },
+        el('h3', {}, el('a', { href: v.url, onclick: (e) => { e.preventDefault(); openReader({ key: '_hl|' + v.url, link: v.url, title: v.title || v.url, sname: v.sname }); } }, v.title || v.url)),
+        el('p', { class: 'meta', text: `${v.sname || ''}${v.sname ? ' · ' : ''}${v.shapes.filter((x) => x.t !== 'note').length} marks · ${v.notes.length} comments` }),
+        ...v.notes.map((n) => el('div', { class: 'hl-item' }, el('p', { class: 'hl-note', text: n.text })))));
+    }
   }
   feed.replaceChildren(...nodes);
 }
@@ -1139,3 +1156,9 @@ function runTour() {
 }
 $('#tourBtn').onclick = () => { $('#keysDlg').close(); setTimeout(runTour, 50); };
 if (!state.toured && (!navigator.webdriver || location.search.includes('tour'))) setTimeout(() => { if (!$('dialog[open]') && $('#reader').hidden) runTour(); }, 900);
+
+// ---------- tablet / touch mode ----------
+const coarse = matchMedia('(pointer: coarse)');
+const applyTouch = () => document.body.classList.toggle('touch', coarse.matches);
+applyTouch();
+coarse.addEventListener?.('change', applyTouch);
