@@ -10,7 +10,8 @@ export const SHORTCUTS = [
   ['Add a site', 'a'],
   ['Write something', 'w'],
   ['Change how it looks', 't'],
-  ['Today’s digest', 'd'],
+  ['Today’s digest · Books', 'd · b'],
+  ['In a PDF: zoom · contents · search · page', '+ − · C · / · G'],
   ['This help', '?'],
 ];
 

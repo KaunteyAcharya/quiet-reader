@@ -3,6 +3,7 @@ import { PRESETS, FONTS, applyTheme, resolveColors, fontStack, loadAllFonts, con
 import * as offline from './offline.js';
 import { showKeys, startTour } from './tour.js';
 import { createInk } from './ink.js';
+import { initBooks, renderBooks, addFiles, openPdfUrl, openById, isPdfUrl } from './books.js';
 import { $, $$, el, icon, hydrate, ago, dayLabel, hue, download } from './ui.js';
 import { initWriter, openWriter, quoteIntoDraft } from './writer.js';
 
@@ -26,7 +27,7 @@ async function api(path, params) {
   for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
   const r = await fetch(u);
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.error || 'Request failed');
+  if (!r.ok) { const e = new Error(j.error || 'Request failed'); e.status = r.status; throw e; }
   return j;
 }
 
@@ -115,6 +116,7 @@ function renderRail() {
     navItem('all', 'Everything', 'inbox'),
     navItem('unread', 'Unread', 'dot', totalUnread || ''),
     navItem('saved', 'Saved', 'mark', savedN || ''),
+    navItem('books', 'Books', 'book', state.books.length || ''),
     navItem('highlights', 'Highlights', 'pen', state.highlights.length || '')
   );
 
@@ -230,8 +232,9 @@ function welcome() {
 function renderFeed() {
   const feed = $('#feed');
   const src = view.source && srcById(view.source);
-  $('#viewTitle').textContent = src ? src.title || new URL(src.url).hostname : view.folder ? view.folder : { today: 'Today', all: 'Everything', unread: 'Unread', saved: 'Saved for later', highlights: 'Highlights & notes' }[view.filter];
+  $('#viewTitle').textContent = src ? src.title || new URL(src.url).hostname : view.folder ? view.folder : { today: 'Today', all: 'Everything', unread: 'Unread', saved: 'Saved for later', books: 'Books', highlights: 'Highlights & notes' }[view.filter];
   if (view.filter === 'highlights') return renderHighlights();
+  if (view.filter === 'books') { $('#markAllBtn').hidden = true; return renderBooks(feed, $('#viewSub')); }
   const items = allItems();
   const un = items.filter((i) => !state.read[i.key]).length;
   const last = Math.max(0, ...state.sources.map((s) => cache[s.id]?.fetched || 0));
@@ -370,6 +373,10 @@ function fillArticle(body, it, current, onDone) {
     })
     .catch((e) => {
       if (!current()) return;
+      if (e.status === 415 && /PDF/.test(e.message)) { // a link that turned out to be a PDF
+        if (body === $('#rBody2')) closeSplit(); else closeReader();
+        return openPdfUrl(it.link, it.title);
+      }
       body.replaceChildren(
         el('p', { class: 'r-meta', text: it.sname || '' }),
         el('h1', { text: it.title }),
@@ -379,6 +386,7 @@ function fillArticle(body, it, current, onDone) {
 }
 
 function openReader(it) {
+  if (isPdfUrl(it.link)) return openPdfUrl(it.link, it.title);
   ink?.unload();
   closeSplit();
   rItem = it;
@@ -453,6 +461,7 @@ function onArticleLink(e) {
   const href = a.href;
   if (!/^https?:/i.test(href)) return;
   e.preventDefault();
+  if (isPdfUrl(href)) return openPdfUrl(href, a.textContent.replace(/\s+/g, ' ').trim().slice(0, 120));
   const here = e.currentTarget === $('#rBody') ? rItem : r2Item;
   if (here && href.split('#')[0] === here.link.split('#')[0]) return; // in-page anchor
   openSplit(href, a.textContent.replace(/\s+/g, ' ').trim().slice(0, 120));
@@ -520,7 +529,7 @@ function kbMove(d) {
 }
 document.addEventListener('keydown', (e) => {
   if (e.target.matches('input, textarea, select, [contenteditable]') || e.metaKey || e.ctrlKey || e.altKey) return;
-  if ($('dialog[open]')) return;
+  if ($('dialog[open]') || $('#pdfr:not([hidden])')) return;
   if (!$('#reader').hidden && $('#writer').hidden) {
     if (e.key === 'Escape') { if (r2Item) closeSplit(); else closeReader(); }
     if (e.key === 'j') step(1);
@@ -542,6 +551,7 @@ document.addEventListener('keydown', (e) => {
     case 'w': e.preventDefault(); openWriter(); break;
     case 't': e.preventDefault(); openTheme(); break;
     case 'd': setView('today', null); break;
+    case 'b': setView('books', null); break;
     case '/': e.preventDefault(); openPalette(); break;
     case '?': showKeys(); break;
     default: return;
@@ -567,6 +577,7 @@ $('#addForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const url = $('#addUrl').value.trim();
   if (!url) return;
+  if (isPdfUrl(/^[a-z]+:\/\//i.test(url) ? url : 'https://' + url)) { $('#addDlg').close(); return openPdfUrl(url); }
   const box = $('#addResult');
   $('#addFind').disabled = true;
   box.replaceChildren(el('p', { class: 'muted', text: 'Looking for a feed…' }));
@@ -752,7 +763,7 @@ refreshAll();
 let toastT;
 function toast(msg, action, fn) {
   const t = $('#toast');
-  t.replaceChildren(el('span', { text: msg }), action ? el('button', { onclick: () => { fn(); t.hidden = true; } }, action) : null);
+  t.replaceChildren(...[el('span', { text: msg }), action ? el('button', { onclick: () => { fn(); t.hidden = true; } }, action) : null].filter(Boolean)); // (a null child would print as the word "null")
   t.hidden = false;
   clearTimeout(toastT);
   toastT = setTimeout(() => (t.hidden = true), action ? 6000 : 3500);
@@ -829,7 +840,10 @@ window.addEventListener('dragover', (e) => { if (e.dataTransfer?.types?.includes
 window.addEventListener('drop', (e) => {
   dragDepth = 0;
   $('#dropHint').hidden = true;
-  const f = e.dataTransfer?.files?.[0];
+  const files = [...(e.dataTransfer?.files || [])];
+  const pdfs = files.filter((f) => f.type === 'application/pdf' || /\.pdf$/i.test(f.name));
+  if (pdfs.length) { e.preventDefault(); setView('books', null); addFiles(pdfs); return; }
+  const f = files[0];
   if (f) { e.preventDefault(); importFile(f); }
 });
 
@@ -844,6 +858,8 @@ function commands() {
     { t: 'Refresh everything', f: () => refreshAll(true) },
     { t: 'Show everything', f: () => setView('all', null) },
     { t: 'Today’s digest', f: () => setView('today', null) },
+    { t: 'Books', f: () => setView('books', null) },
+    { t: 'Open a PDF from this device', f: () => { setView('books', null); const i = document.createElement('input'); i.type = 'file'; i.accept = 'application/pdf,.pdf'; i.multiple = true; i.onchange = () => addFiles(i.files); i.click(); } },
     { t: 'Show unread', f: () => setView('unread', null) },
     { t: 'Keyboard shortcuts', f: showKeys },
     { t: 'Take the tour', f: runTour },
@@ -859,7 +875,7 @@ function commands() {
 function palRender() {
   const q = $('#palIn').value.trim();
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
-  palItems = looksLikeUrl(q) ? [{ t: 'Save this link for later', hint: q.slice(0, 40), f: () => quickSave(q) }, { t: 'Add as a source (find its feed)', f: () => { openAdd(); $('#addUrl').value = q; $('#addForm').requestSubmit(); } }] : commands().filter((c) => words.every((w) => c.t.toLowerCase().includes(w))).slice(0, 12);
+  palItems = looksLikeUrl(q) && isPdfUrl(/^[a-z]+:\/\//i.test(q) ? q : 'https://' + q) ? [{ t: 'Open this PDF', hint: q.slice(0, 40), f: () => openPdfUrl(q) }, { t: 'Save this link for later', f: () => quickSave(q) }] : looksLikeUrl(q) ? [{ t: 'Save this link for later', hint: q.slice(0, 40), f: () => quickSave(q) }, { t: 'Add as a source (find its feed)', f: () => { openAdd(); $('#addUrl').value = q; $('#addForm').requestSubmit(); } }] : commands().filter((c) => words.every((w) => c.t.toLowerCase().includes(w))).slice(0, 12);
   palSel = Math.min(palSel, Math.max(0, palItems.length - 1));
   $('#palList').replaceChildren(...palItems.map((c, i) => el('li', { class: i === palSel ? 'on' : '', role: 'option', onclick: () => palRun(i) }, el('span', { text: c.t }), c.hint ? el('small', { text: c.hint }) : null)));
 }
@@ -961,6 +977,7 @@ function deleteHighlight(id) {
   state.highlights = state.highlights.filter((h) => h.id !== id);
   unwrapMarks(id);
   save();
+  document.dispatchEvent(new Event('quiet-hl'));
   renderRail();
   if (view.filter === 'highlights') renderFeed();
 }
@@ -1035,6 +1052,7 @@ $('#noteSave').onclick = () => {
   noteFor.note = $('#noteText').value.trim();
   save();
   restyleMarks(noteFor);
+  document.dispatchEvent(new Event('quiet-hl'));
   $('#noteDlg').close();
   if (view.filter === 'highlights') renderFeed();
 };
@@ -1052,7 +1070,7 @@ function renderHighlights() {
   const nodes = [el('div', { class: 'row hl-tools' }, el('button', { class: 'btn small', onclick: exportHighlights }, 'Export as Markdown'))];
   for (const [url, list] of groups) {
     nodes.push(el('section', { class: 'hl-group' },
-      el('h3', {}, el('a', { href: url, onclick: (e) => { e.preventDefault(); openReader({ key: '_hl|' + url, link: url, title: list[0].title, sname: list[0].sname }); } }, list[0].title)),
+      el('h3', {}, el('a', { href: url, onclick: (e) => { e.preventDefault(); if (list[0].pdf) openById(list[0].pdf, { page: list[0].page + 1 }); else openReader({ key: '_hl|' + url, link: url, title: list[0].title, sname: list[0].sname }); } }, list[0].title)),
       el('p', { class: 'meta', text: list[0].sname }),
       ...list.map((h) => el('div', { class: 'hl-item' },
         el('blockquote', { text: h.text }),
@@ -1162,3 +1180,6 @@ const coarse = matchMedia('(pointer: coarse)');
 const applyTouch = () => document.body.classList.toggle('touch', coarse.matches);
 applyTouch();
 coarse.addEventListener?.('change', applyTouch);
+
+// ---------- PDF books ----------
+initBooks({ state, save, toast, uid, openNote, deleteHighlight, onChange: () => { renderRail(); if (view.filter === 'books') renderFeed(); if (view.filter === 'highlights') renderFeed(); } });

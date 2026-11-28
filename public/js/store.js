@@ -16,6 +16,8 @@ const defaults = () => ({
   writer: { tw: false, sf: false },
   pos: {}, // article link -> {r: scroll ratio 0..1, t: ts}
   toured: false,
+  books: [], // PDFs: {id, kind:'file'|'link', title, pages, size, pos:{p,f}} — files live in IndexedDB
+  pdfPrefs: { zoom: 1, tint: 'theme' },
   ink: {}, // article link -> {shapes, t, title, sname}
   inkStyle: { c: 'orange', s: 'M' },
   inkPenOnly: null, // null = automatic (fingers scroll once a pen has been seen)

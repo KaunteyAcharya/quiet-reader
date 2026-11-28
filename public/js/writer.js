@@ -19,9 +19,11 @@ function track() {
   const p = paraCount(t);
   const st = (state.writeStats[dayKey()] ||= { w: 0, p: 0, s: 0 });
   const dw = w - prevW;
-  if (dw > 0 && dw <= 150) st.w += dw; // big jumps are pastes, not writing
+  // Net words written today: typing adds, deleting takes away (never below zero).
+  // A sudden jump up of 150+ words is a paste, not writing, so it isn't counted.
+  if (dw < 0 || dw <= 150) st.w = Math.max(0, st.w + dw);
   const dp = p - prevP;
-  if (dp > 0 && dp <= 10) st.p += dp;
+  if (dp < 0 || dp <= 10) st.p = Math.max(0, st.p + dp);
   const now = Date.now();
   if (lastType && now - lastType < 10000) st.s += (now - lastType) / 1000;
   lastType = now;

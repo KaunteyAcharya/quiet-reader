@@ -100,4 +100,25 @@ try {
   await t('exact index page is trusted as-is', async () => { const d = await discover(base2 + '/essays'); assert.equal(d.feedUrl, base2 + '/essays'); assert.equal(d.detected, null); });
   await t('single article -> finds the section it belongs to', async () => { const d = await discover(base2 + '/essays/a1'); assert.equal(d.feedUrl, base2 + '/essays'); });
 } finally { srv2.close(); }
+// --- PDF slices ---
+const pdfBytes = Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.alloc(9000, 65), Buffer.from('\n%%EOF')]);
+const srv3 = http.createServer((q, r) => {
+  if (q.url === '/book.pdf' || q.url === '/norange.pdf') {
+    r.setHeader('content-type', 'application/pdf');
+    const m = q.url === '/book.pdf' && /bytes=(\d+)-(\d+)/.exec(q.headers.range || '');
+    if (m) { const a = +m[1], b = Math.min(+m[2], pdfBytes.length - 1); r.statusCode = 206; r.setHeader('content-range', `bytes ${a}-${b}/${pdfBytes.length}`); return r.end(pdfBytes.subarray(a, b + 1)); }
+    r.setHeader('content-length', pdfBytes.length); return r.end(pdfBytes);
+  }
+  if (q.url === '/fake.pdf') return r.end('<html>nope</html>');
+  r.statusCode = 404; r.end('nf');
+}).listen(0);
+const base3 = `http://127.0.0.1:${srv3.address().port}`;
+try {
+  const { fetchRange } = await import('../lib/net.js');
+  await t('pdf slice via Range', async () => { const r = await fetchRange(base3 + '/book.pdf', 0, 99); assert.equal(r.buf.length, 100); assert.equal(r.total, pdfBytes.length); assert.equal(r.start, 0); const q = await fetchRange(base3 + '/book.pdf', 5000, 5099); assert.equal(q.start, 5000); assert.equal(q.buf.length, 100); });
+  await t('pdf slice when origin ignores Range', async () => { const q = await fetchRange(base3 + '/norange.pdf', 2000, 2049); assert.equal(q.buf.length, 50); assert.equal(q.start, 2000); assert.ok(q.buf.equals(pdfBytes.subarray(2000, 2050))); assert.equal(q.total, pdfBytes.length); });
+  await t('non-PDF is rejected', async () => { await assert.rejects(fetchRange(base3 + '/fake.pdf', 0, 99), /not a PDF/); });
+  await t('article reader says PDFs belong in the viewer', async () => { await assert.rejects(readArticle(base3 + '/book.pdf'), /PDF/); });
+  await t('pdf proxy blocks private hosts', async () => { delete process.env.ALLOW_PRIVATE_FETCH; await assert.rejects(fetchRange('http://127.0.0.1:1/x.pdf', 0, 9), /not allowed/); process.env.ALLOW_PRIVATE_FETCH = '1'; });
+} finally { srv3.close(); }
 console.log(`\nAll ${n} checks passed.`);
